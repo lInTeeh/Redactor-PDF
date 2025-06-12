@@ -1,0 +1,85 @@
+import fitz  # PyMuPDF
+import re
+import os
+
+# Listas con las AFP y previsiones de salud a tapar (puedes agregar las que necesites)
+afps = ["AFP Modelo", "AFP Habitat", "AFP Capital", "AFP Cuprum", "AFP Provida", "AFP PlanVital"]
+saludes = ["ISAPRE Consalud", "ISAPRE Banmédica", "ISAPRE Colmena", "ISAPRE Cruz Blanca", "FONASA"]
+
+def redactar_dato_despues_de(page, frase_clave, lista_valores):
+    texto = page.get_text()
+    # Buscamos la frase clave en texto sin importar mayúsculas/minúsculas
+    matches = re.finditer(frase_clave, texto, re.IGNORECASE)
+    for match in matches:
+        inicio = match.end()
+        # A partir de ahí tomamos el texto para buscar cuál valor coincide
+        texto_post = texto[inicio:]
+        for valor in lista_valores:
+            # Buscar el valor en texto_post, case insensitive
+            patron = re.compile(re.escape(valor), re.IGNORECASE)
+            res = patron.search(texto_post)
+            if res:
+                # Obtenemos las coordenadas de donde aparece el texto para tapar
+                # La función page.search_for es case-sensitive, así que buscamos el texto tal cual aparece en page
+                cuadros = page.search_for(valor)  # máximo 16 apariciones por si acaso
+                for cuadro in cuadros:
+                    page.add_redact_annot(cuadro, fill=(0, 0, 0))  # negro
+                break  # tapamos solo la primera coincidencia encontrada
+
+# Redactar RUT solo si viene después de "cédula de identidad N°"
+def redactar_rut(page):
+    texto = page.get_text("text")
+    # Buscamos el texto completo para limitar la búsqueda a la parte del documento donde aparece "cédula de identidad N°"
+    lineas = texto.splitlines()
+
+    for i, linea in enumerate(lineas):
+        if "cédula de identidad n°" in linea.lower():
+            # Desde esta línea en adelante, buscar los RUT sin puntos con formato xxxxxxxx-x
+            for linea_sgte in lineas[i:]:
+                # Busca todos los RUT sin puntos en la línea siguiente
+                ruts_en_linea = re.findall(r"\b\d{7,8}-[0-9kK]\b", linea_sgte)
+                for rut in ruts_en_linea:
+                    print(f"Redactando RUT: {rut}")
+                    cuadros = page.search_for(rut)
+                    for rect in cuadros:
+                        page.add_redact_annot(rect, fill=(0, 0, 0))
+            break  # Solo procesa después de la primera ocurrencia
+
+    page.apply_redactions()
+
+# Redactar correos electrónicos
+def redactar_correos(page):
+    texto = page.get_text("text")
+    correos = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", texto)
+    for correo in correos:
+        print(f"Redactando correo: {correo}")
+        cuadros = page.search_for(correo)
+        for rect in cuadros:
+            page.add_redact_annot(rect, fill=(0,0,0))
+    page.apply_redactions()
+
+# Procesar cada PDF
+def redactar_pdf(ruta_entrada, ruta_salida):
+    doc = fitz.open(ruta_entrada)
+    for page in doc:
+        redactar_rut(page)
+        redactar_correos(page)
+        redactar_dato_despues_de(page, "afiliado a", afps)
+        redactar_dato_despues_de(page, "en SALUD a", saludes)
+        page.apply_redactions()
+    doc.save(ruta_salida)
+    
+
+# Procesar todos los PDFs en la carpeta
+def procesar_pdfs(directorio_entrada, directorio_salida):
+    for archivo in os.listdir(directorio_entrada):
+        if archivo.lower().endswith(".pdf"):
+            ruta_entrada = os.path.join(directorio_entrada, archivo)
+            ruta_salida = os.path.join(directorio_salida, archivo)
+            redactar_pdf(ruta_entrada, ruta_salida)
+
+# Ejecutar
+if __name__ == "__main__":
+    entrada = "entrada_pdfs"
+    salida = "salida_pdfs"
+    procesar_pdfs(entrada, salida)
