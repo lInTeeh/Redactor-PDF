@@ -62,8 +62,8 @@ def procesar_pdf_escaneado(ruta_entrada, ruta_salida):
     print(f"\n✅ Listo: {ruta_salida}")
 
 # 📁 Rutas reales proporcionadas por el usuario
-carpeta_entrada = r"C:\Users\sofia\Desktop\RedactorPDF\entrada_pdfs"
-carpeta_salida = r"C:\Users\sofia\Desktop\RedactorPDF\salida_pdfs"
+carpeta_entrada = r"RUTA USUARIO"
+carpeta_salida = r"RUTA USUARIO"
 
 # 🔄 Procesar todos los PDFs en la carpeta
 def procesar_todos_los_pdfs():
